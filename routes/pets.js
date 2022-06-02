@@ -23,22 +23,28 @@ module.exports = (app) => {
         // Handle Errors
       }) ;
   });
+  // SEARCH PET
+    app.get('/search', (req, res) => {
+      const term = new RegExp(req.query.term, 'i')
+      const page = req.query.page || 1
+
+      Pet.paginate(
+        {
+          $or: [
+            { 'name': term },
+            { 'species': term },
+            { 'description': term }
+          ]
+        },
+        { page: page }).then((results) => {
+          res.render('pets-index', { pets: results.docs, pagesCount: results.pages, currentPage: page, term: req.query.term });
+        });
+    });
 
   // SHOW PET
   app.get('/pets/:id', (req, res) => {
     Pet.findById(req.params.id).exec((err, pet) => {
       res.render('pets-show', { pet: pet });
-    });
-  });
-
-  // SHOW PET by Name
-  app.post('/search', (req, res) => {
-    Pet.findOne({ name: req.body.name }).exec((err, pet) => {
-      if (pet){
-        res.render('pets-show', { pet: pet });
-      } else {
-        res.redirect('/')
-      }
     });
   });
 
