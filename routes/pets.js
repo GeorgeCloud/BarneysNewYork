@@ -1,6 +1,8 @@
 // MODELS
 const Pet = require('../models/pet');
 
+const mailer = require('../utils/mailer');
+
 // Storage
 const multer  = require('multer');
 const upload = multer({ dest: 'uploads/' });
@@ -31,9 +33,6 @@ const client = new Upload(process.env.S3_BUCKET, {
 
 // PET ROUTES
 module.exports = (app) => {
-
-  // INDEX PET => index.js
-
   // NEW PET
   app.get('/pets/new', (req, res) => {
     res.render('pets-new');
@@ -46,14 +45,11 @@ module.exports = (app) => {
       if (req.file) {
         // Upload the images
         client.upload(req.file.path, {}, function (err, versions, meta) {
-          console.log(versions)
           if (err) { return res.status(400).send({ err: err }) };
-          // Pop off the -square and -standard and just use the one URL to grab the image
           var urlArray = versions[0].url.split('-');
           urlArray.pop();
           var url = urlArray.join('-');
           pet.avatarUrl = url;
-
           pet.save();
 
           res.send({ pet: pet });
@@ -95,6 +91,31 @@ module.exports = (app) => {
       res.render('pets-edit', { pet: pet });
     });
   });
+
+  // PURCHASE PET
+  app.post('/pets/:id/purchase', (req, res) => {
+    var stripe = require("stripe")(process.env.PRIVATE_STRIPE_API_KEY);
+    const token = req.body.stripeToken;
+    let petId = req.body.petId || req.params.id;
+
+    Pet.findById(petId).exec((err, pet)=> {
+      if (err) {
+        console.log('Error: ' + err);
+        res.redirect(`/pets/${req.params.id}`);
+      }
+      const charge = stripe.charges.create({
+        amount: pet.price * 100,
+        currency: 'usd',
+        description: `Purchased ${pet.name}, ${pet.species}`,
+        source: token,
+      }).then((chg) => {
+        res.redirect(`/pets/${req.params.id}`);
+      })
+      .catch(err => {
+        console.log('Error:' + err);
+      });
+    })
+  })
 
   // UPDATE PET
   app.put('/pets/:id', (req, res) => {
